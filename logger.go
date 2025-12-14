@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"time"
 )
 
 // Fields is a type alias for a map of key-value pairs used in structured logging.
@@ -19,6 +18,7 @@ type Logger struct {
 	threshold Level
 	output    io.Writer
 	fields    Fields
+	formatter Formatter
 }
 
 // New creates a new Logger instance.
@@ -29,7 +29,12 @@ func New(threshold Level, output io.Writer) *Logger {
 		threshold: threshold,
 		output:    output,
 		fields:    make(Fields),
+		formatter: &TextFormatter{},
 	}
+}
+
+func (l *Logger) SetFormatter(f Formatter) {
+	l.formatter = f
 }
 
 // WithFields creates a new Logger instance with the provided fields added to the existing context.
@@ -50,6 +55,7 @@ func (l *Logger) WithFields(f Fields) *Logger {
 		threshold: l.threshold,
 		output:    l.output,
 		fields:    newFields,
+		formatter: l.formatter,
 	}
 }
 
@@ -59,17 +65,15 @@ func (l *Logger) log(lvl Level, message string) {
 		return
 	}
 
-	fieldsString := ""
-
-	for k, v := range l.fields {
-		fieldsString += fmt.Sprintf("%s=%v ", k, v)
+	// UPDATED: Use the formatter instead of manual printing
+	serialized, err := l.formatter.Format(lvl, message, l.fields)
+	if err != nil {
+		fmt.Printf("Failed to format log: %v\n", err)
+		return
 	}
 
-	timenow := time.Now().Format(time.RFC3339)
-
-	// We use Fprintf to write to the specified output (file, stdout, etc.)
-	// Format: Timestamp: LEVEL - key=value message: Actual Message
-	fmt.Fprintf(l.output, "%v: %s - %smessage: %s\n", timenow, lvl.String(), fieldsString, message)
+	// Write the bytes to the output
+	l.output.Write(serialized)
 }
 
 // Debug logs a message at DebugLevel.

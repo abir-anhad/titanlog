@@ -7,16 +7,16 @@ import (
 )
 
 func main() {
+	// 1. Create logger
 	logger := titanlog.New(titanlog.InfoLevel, os.Stdout)
 
-	requestLogger := logger.WithFields(titanlog.Fields{
-		"request_id": "req-12345",
-		"ip":         "192.168.1.1",
-	})
+	// 2. Switch to JSON Formatter
+	logger.SetFormatter(&titanlog.JSONFormatter{})
 
-	requestLogger.Info("Request started")
-	requestLogger.WithFields(titanlog.Fields{"user_id": 101}).Info("User authenticated")
-
-	// 4. Log using the base logger again to prove it has NO fields
-	logger.Warn("This is a global warning (should have no fields)")
+	// 3. Log something with fields
+	logger.WithFields(titanlog.Fields{
+		"user_id":  12345,
+		"action":   "payment",
+		"currency": "USD",
+	}).Info("Payment processed successfully")
 }
