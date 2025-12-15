@@ -1,3 +1,5 @@
+[![Go Reference](https://pkg.go.dev/badge/github.com/abir-anhad/titanlog.svg)](https://pkg.go.dev/github.com/abir-anhad/titanlog)
+
 # TitanLog
 
 TitanLog is a high-performance, thread-safe, structured logging library for Go.
