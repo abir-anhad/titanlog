@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"sync"
 )
 
 // Fields is a type alias for a map of key-value pairs used in structured logging.
@@ -13,12 +14,13 @@ import (
 type Fields map[string]interface{}
 
 // Logger is the main struct that holds the configuration for logging.
-// It is safe for concurrent use (we will add this later!).
+// It is safe for concurrent use.
 type Logger struct {
 	threshold Level
 	output    io.Writer
 	fields    Fields
 	formatter Formatter
+	mu        sync.Mutex // Ensures thread safety
 }
 
 // New creates a new Logger instance.
@@ -33,7 +35,10 @@ func New(threshold Level, output io.Writer) *Logger {
 	}
 }
 
+// SetFormatter allows changing the logging format (e.g., JSON or Text) at runtime.
 func (l *Logger) SetFormatter(f Formatter) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.formatter = f
 }
 
@@ -51,6 +56,7 @@ func (l *Logger) WithFields(f Fields) *Logger {
 	// Add the new fields to the new map
 	maps.Copy(newFields, f)
 
+	// Note: We don't copy the mutex. The new logger gets a fresh, unlocked mutex.
 	return &Logger{
 		threshold: l.threshold,
 		output:    l.output,
@@ -61,11 +67,20 @@ func (l *Logger) WithFields(f Fields) *Logger {
 
 // log is a private helper that formats and writes the log message to the output.
 func (l *Logger) log(lvl Level, message string) {
+	// 1. Check threshold BEFORE locking.
+	// This is a performance optimization. If the log is ignored, we don't pay the cost of locking.
 	if lvl < l.threshold {
 		return
 	}
 
-	// UPDATED: Use the formatter instead of manual printing
+	// 2. Lock the mutex to ensure no other goroutine writes at the same time.
+	l.mu.Lock()
+	// 3. Defer the Unlock.
+	// This ensures that l.mu.Unlock() is ALWAYS called when this function exits,
+	// even if we return early due to an error.
+	defer l.mu.Unlock()
+
+	// Use the formatter
 	serialized, err := l.formatter.Format(lvl, message, l.fields)
 	if err != nil {
 		fmt.Printf("Failed to format log: %v\n", err)
